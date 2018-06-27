@@ -1,14 +1,3 @@
-// Copyright 2013 The Go Authors. All rights reserved.
-// Use of this source code is governed by a BSD-style
-// license that can be found in the LICENSE file.
-
-// This is an example of a goyacc program.
-// To build it:
-// goyacc -p "expr" expr.y (produces y.go)
-// go build -o expr y.go
-// expr
-// > <type an expression>
-
 %{
 
 package main
@@ -21,6 +10,7 @@ import (
 	"os"
 	"math/big"
 	"unicode/utf8"
+	"fmt"
 )
 
 %}
@@ -33,20 +23,22 @@ import (
 	f_p func()
 }
 
-%type <f> A A_1 V VI
+%type <f> A A_1 V 
+%type <f_p> VI
 
 %token '[' ']' '{' '}' ',' ':'
-%token <stringVal, f_p> STRING
-%token <boolVal, f_p> BOOL
-%token <numVal, f_p> NUM
-%token <f_p> NULL
+%token <stringVal> STRING
+%token <boolVal> BOOL
+%token <numVal> NUM
+%token NULL
 
 %%
 J:
 	O
 |	A
-	{
-		$1(0)
+	{	
+		s1 := $1
+		s1(0)
 	}
 
 O:
@@ -59,8 +51,9 @@ O_1:
 A:
 	'[' A_1 ']'
 	{
+		s2 := $2
 		$$ = func(level int) {
-			$2(level)
+			s2(level)
 		}
 	}
 |	'[' ']' {}
@@ -68,15 +61,18 @@ A:
 A_1:
 	V
 	{
+		s1 := $1
 		$$ = func(level int) {
-			$1(level)
+			s1(level)
 		}
 	}
 |	V ',' A_1
 	{
+		s1 := $1
+		s3 := $3
 		$$ = func(level int) {
-			$1(level)
-			$3(level)
+			s1(level)
+			s3(level)
 		}
 	}
 
@@ -84,35 +80,44 @@ A_1:
 V: 
 	A 
 	{
+		s1 := $1
 		$$ = func(level int) {
-			for i = 0; i < level; i++ {
+			for i := 0; i < level; i++ {
 				fmt.Print(" ")
 			}
 			fmt.Print(" - ")
-			$1(level + 1)
+			s1(level + 1)
 		}
 	}
 |	O {}
 |	VI 
 	{
+		s1 := $1
 		$$ = func(level int) {
-				for i = 0; i < level; i++ {
+				for i := 0; i < level; i++ {
 					fmt.Print(" ")
 				}
 				fmt.Print(" - ")
-				$1()
-		}
+				s1()
+			}
 	}
 
 VI:
 	STRING
 	{
+		st := $1
 		$$ = func() {
-			fmt.Println($1.stringVal)
+			fmt.Println(*st)
 		}
 	}
 |	NUM {}
-|	BOOL {}
+|	BOOL
+	{
+		st := $1
+		$$ = func() {
+			fmt.Println(st)
+		}
+	}
 |	NULL {}
 %%
 

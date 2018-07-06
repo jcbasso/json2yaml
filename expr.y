@@ -30,7 +30,7 @@ import (
 %token <stringVal> STRING
 %token <boolVal> BOOL
 %token <numVal> NUM
-%token NULL
+%token <> NULL
 
 %%
 J:
@@ -185,7 +185,10 @@ VI:
 			fmt.Println(st)
 		}
 	}
-|	NULL {}
+|	NULL 
+	{
+		$$ = func() {fmt.Println()}
+	}
 %%
 
 // The parser expects the lexer to return 0 on EOF.  Give it a name
@@ -210,7 +213,7 @@ func (x *exprLex) Lex(yylval *exprSymType) int {
 		case '[',']',',','{','}',':':
 			return int(c)
 		//Num Value
-		case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
+		case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '-':
 			return x.getNumValue(c, yylval)
 
 		//Bool value
@@ -218,13 +221,14 @@ func (x *exprLex) Lex(yylval *exprSymType) int {
 			return x.getBoolValue(c, yylval)
 		//Null value
 		case 'n':
-			return NULL
+			return x.readNullValue(c)
 		//String value
 		case '"':
 			 return x.readStringValue(c, yylval)
 		case ' ', '\t', '\n', '\r':
 		default:
 			log.Printf("unrecognized character %q", c)
+			return eof
 		}
 	}
 }
@@ -270,7 +274,7 @@ func (x *exprLex) getNumValue(c rune, yylval *exprSymType) int {
 	L: for {
 		c = x.next()
 		switch c {
-		case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '.', 'e':
+		case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '.', 'e', '-':
 			add(&b, c)
 		default:
 			break L
@@ -280,7 +284,7 @@ func (x *exprLex) getNumValue(c rune, yylval *exprSymType) int {
 		x.peek = c
 	}
 
-	matches, _ := regexp.Match("[0-9]+(.[0-9]+(e[1-9]+)?)?", b.Bytes())
+	matches, _ := regexp.Match("-?[0-9]+(.[0-9]+(e[1-9]+)?)?", b.Bytes())
 	if !matches {
 		log.Printf("Num malformed")
 		return eof
@@ -288,6 +292,35 @@ func (x *exprLex) getNumValue(c rune, yylval *exprSymType) int {
 	res := b.String()
 	yylval.numVal = &res
 	return NUM
+}
+
+func (x *exprLex) readNullValue(c rune) int {
+	add := func(b *bytes.Buffer, c rune) {
+		if _, err := b.WriteRune(c); err != nil {
+			log.Fatalf("WriteRune: %s", err)
+		}
+	}
+	var b bytes.Buffer
+	add(&b, c)
+	L: for {
+		c = x.next()
+		switch c {
+		case 'n','u','l':
+			add(&b, c)
+		default:
+			break L
+		}
+	}
+	if c != eof {
+		x.peek = c
+	}
+
+	if b.String() != "null" {
+		log.Printf("Null malformed")
+		return eof
+	}
+
+	return NULL
 }
 
 func (x *exprLex) readStringValue(c rune, yylval *exprSymType) int {
